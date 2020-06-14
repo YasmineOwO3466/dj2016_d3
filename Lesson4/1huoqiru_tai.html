@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<!-- Modification of an example by Scott Murray from Knight D3 course -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Line Chart with Multiple Lines</title>
+		<style type="text/css">
+
+			body {
+				background-color: white;
+				font-family: Helvetica, Arial, sans-serif;
+				text-align: center;
+				background-color: #e6f4fd;
+			}
+
+			h1 {
+				font-size: 24px;
+				margin: 0;
+			}
+
+			p {
+				font-size: 14px;
+				margin: 10px 0 0 0;
+			}
+
+			svg {
+				background-color: #e6f4fd;
+			}
+
+			path.line {
+				fill: none;
+				stroke: #0160b0;
+				stroke-width: 1px;
+			}
+
+			circle, path:hover {
+				cursor: pointer;
+			}
+
+			.axis path,
+			.axis line {
+				fill: none;
+				stroke: black;
+				stroke-width: 1px;
+			}
+
+			.axis text {
+				font-family: sans-serif;
+				font-size: 11px;
+			}
+
+			text.linelabel {
+				font-size: 10pt;
+				fill: #555555;
+			}
+
+			#focused {
+				stroke: #4e4e4e;
+				stroke-width: 2px;
+			}
+
+			text.hidden {
+				display: none;
+			}
+
+			text.bolder {
+				font-weight: bolder;
+				color: #4e4e4e;
+			}
+			
+			.tooltip {
+                  position: absolute;
+                  z-index: 10;
+            }
+
+           .voronoi path {
+                  fill: none;
+                  pointer-events: all;
+            }
+
+          .voronoi--show path {
+                 stroke: red;
+                 stroke-opacity: 0.2;
+            }
+          #form {
+                 position: absolute;
+                 top: 20px;
+                 right: 30px;
+            }
+
+
+		</style>
+	</head>
+	<body>
+
+		<h1>Total water resources（2006-2016）</h1>
+
+		<p>The figure shows the total water resources change in each province from 2006 to 2016(Hundred million cubic meters).</p>
+			<p>Source:<a href="http://data.worldbank.org/indicator/EN.ATM.CO2E.KT?page=6">National data</a>, design by Huo Qiru</p>
+			<label id="form" for="show-voronoi">
+  Show Voronoi
+  <input type="checkbox" id="show-voronoi" disabled>
+</label>
+
+
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.1.0/d3.js"></script>
+		<script type="text/javascript">
+
+			var fullwidth = 900;
+			var fullheight = 800;
+			var margin = { top: 20, right: 230, bottom: 20, left: 100 };
+
+
+			var width = fullwidth - margin.left - margin.right;
+			var height = fullheight - margin.top - margin.bottom;
+
+			var timeParse = d3.timeParse("%Y");
+			var timeFormat = d3.timeFormat("%Y");
+
+			var xScale = d3.scaleTime()
+								.range([0, width]);
+
+			var yScale = d3.scaleLinear()
+								.range([0, height]);
+
+			var xAxis = d3.axisBottom(xScale)
+							.tickFormat(function(d) {
+								return timeFormat(d);
+							})
+							.ticks(15);
+
+			var yAxis = d3.axisLeft(yScale);
+
+			var voronoi = d3.voronoi()
+    .x(function(d) { return x(d.year); })
+    .y(function(d) { return y(d.amount); })
+    .extent([[-margin.left, -margin.top], [width + margin.right, height + margin.bottom]]);
+
+
+
+			var line = d3.line()
+				.x(function(d) {
+					return xScale(timeParse(d.year));
+				})
+				.y(function(d) {
+					return yScale(+d.amount);
+				})
+			    .curve(d3.curveCardinal);
+
+
+			var svg = d3.select("body")
+						.append("svg")
+						.attr("width", fullwidth)
+						.attr("height", fullheight)
+						.append("g")
+						.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+           
+            var radius = 3;
+
+            var tooltip = d3.select("body")
+                        .append("div")
+                        .attr("class", "tooltip");
+
+			d3.csv("Water_resourse.csv", function(data) {
+
+				var years = d3.keys(data[0]).slice(0, 16-3); 
+				var dataset = [];
+				
+               //console.log(years);
+
+				data.forEach(function(d){
+
+					var waterResources = [];
+
+					years.forEach(function(y){
+						if (d[y]) { 
+							waterResources.push({
+								myProvince:d.Provinces,
+								year: y,
+								amount: + d[y]
+							})
+						}
+					})
+
+					dataset.push({
+						province: d.Provinces,
+						Water_resources: waterResources
+					})
+				})
+                
+                //console.log(dataset)
+
+				xScale.domain(
+					d3.extent(years, function(d) {
+						return timeParse(d);
+					}));
+
+				yScale.domain([
+					d3.max(dataset, function(d) {
+						return d3.max(d.Water_resources, function(d) {
+							return +d.amount;
+						});
+					}),
+					0
+				]);
+
+				var groups = svg.selectAll("g")
+					.data(dataset)
+					.enter()
+					.append("g");
+
+
+				groups.selectAll("path")
+					.data(function(d) { 
+						return [ d.Water_resources ]; 
+					})
+					.enter()
+					.append("path")
+					.attr("class", "line")
+					.attr("d", line);
+
+				groups.append("text")
+				    
+					.attr("x", function(d) {
+						if (d.Water_resources.length != 0) {
+					  	var lastYear = d.Water_resources[d.Water_resources.length-1].year;
+					  	return xScale(timeParse(lastYear));
+					  }
+					})
+					.attr("y", function(d) {
+						if (d.Water_resources.length != 0) {
+					  	var lastAmount = d.Water_resources[d.Water_resources.length-1].amount;
+					  	return yScale(lastAmount);
+						}
+					})
+					.attr("dx", "3px")
+					.attr("dy", "3px")
+					.text(function(d) {console.log(d);
+						if (d.Water_resources.length != 0) {
+							var lastAmount = d.Water_resources[d.Water_resources.length-1].amount;
+							if (+lastAmount > 500) {
+								return d.province;
+							}
+						}
+					})
+					.attr("class", "linelabel");
+
+
+				
+				groups.on("mouseover", mouseoverGroup)
+					  .on("mouseout", mouseoutGroup)
+				
+
+				var circles = groups.selectAll("circle")
+					.data(function(d) { 
+								return d.Water_resources; 
+					})
+					.enter()
+					.append("circle");
+
+				circles.attr("cx", function(d) {
+						return xScale(timeParse(d.year));
+					})
+					.attr("cy", function(d) {
+						return yScale(d.amount);
+					})
+					.attr("r", radius)
+					.attr("opacity", 0); 
+
+				circles
+					.on("mouseover", mouseoverCircle)
+					.on("mousemove", mousemoveCircle)
+					.on("mouseout",	mouseoutCircle);
+
+				svg.append("g")
+					.attr("class", "x axis")
+					.attr("transform", "translate(0," + height + ")")
+					.call(xAxis);
+
+				svg.append("g")
+					.attr("class", "y axis")
+					.call(yAxis);
+
+			}); 
+			
+             var voronoiGroup = g.append("g")
+      .attr("class", "voronoi");
+
+  voronoiGroup.selectAll("path")
+    .data(voronoi.polygons(d3.merge(data.map(function(d) { return d.values; }))))
+    .enter().append("path")
+      .attr("d", function(d) { return d ? "M" + d.join("L") + "Z" : null; })
+      .on("mouseover", mouseover)
+      .on("mouseout", mouseout);
+
+  d3.select("#show-voronoi")
+      .property("disabled", false)
+      .on("change", function() { voronoiGroup.classed("voronoi--show", this.checked); });
+
+	
+			function mouseoverGroup(d){
+				d3.select(this).select("path").attr("id", "focused"); 
+				d3.select(this).select("text").classed("hidden", false);  
+				d3.select(this).select("text").classed("bolder", true);
+			}
+
+			function mouseoutGroup(d){
+				d3.select(this).select("path").attr("id", null); 
+				d3.select(this).select("text").classed("bolder", false); 
+			}
+
+
+			function mouseoverCircle(d) {
+
+				d3.select(this)
+					.transition()
+					.style("opacity", 1)
+					.attr("r", radius * 1.5);
+
+				tooltip
+					.style("display", null) 
+					.html(
+						"<p>province: " + d.myProvince +
+						"<br>Year: " + d.year +
+						"<br>Water_resource: " + d.amount + " hundred million m³</p>"
+						);
+			}
+
+			function mousemoveCircle(d) {
+				tooltip
+					.style("top", (d3.event.pageY - 10) + "px" )
+					.style("left", (d3.event.pageX + 10) + "px");
+				}
+
+			function mouseoutCircle(d) {
+				d3.select(this)
+					.transition()
+					.style("opacity", 0)
+					.attr("r", 3);
+
+				d3.selectAll("path.line").classed("unfocused", true).classed("focused", false);
+
+		    	tooltip.style("display", "none");  
+		    }
+
+
+
+		</script>
+
+	</body>
+</html>

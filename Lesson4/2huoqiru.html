@@ -1,0 +1,265 @@
+<html lang="en">
+
+    <head>
+        <meta charset="utf-8">
+        <meta name=viewport content="width=device-width,user-scalable=no,initial-scale=1,maximum-scale=1,minimum-scale=1">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+        <title>Scatter Data Transition Toggle</title>
+        <style>
+	        body {
+				background-color: white;
+				font-family: "微软雅黑", "黑体";
+				text-align: center;
+				margin: 0 auto;
+				background-color: #e6f4fd;
+			}
+
+			h1 {
+				font-size: 24px;
+				margin: 0;
+				text-align: center;
+				margin: 10px auto;
+				color: #3e3e3e;
+			}
+
+			p {
+				font-size: 17px;
+				margin: 10px 0 10px 0;
+				text-align: left;
+				color: #3e3e3e;
+			}
+
+			.selected {
+				background-color: pink;
+			}
+
+			svg {
+				background-color: #e6f4fd;
+				float: left;
+			}
+
+			.axis path,
+			.axis line {
+				fill: none;
+				stroke: #ccc;
+				stroke-width: 1px;
+			}
+
+			.line {
+				fill: none;
+				stroke: #0c66b3;
+				stroke-width: 2px;
+				stroke-opacity: 80%;
+			}
+
+			.axis text {
+				font-family: sans-serif;
+				font-size: 15px;
+				line-height: 1em;
+			}
+
+			.map_note {
+				padding-top: 120px;
+				padding-left: 30px;
+			}
+            
+			.row {
+				padding-top: 50px;
+			}
+
+			.btn-group {
+				padding-top: 20px;
+			}
+			.button {
+                 background-color: #0282dc; 
+                 border: none;
+                 color: white;
+                 border-radius: 8px;
+                 padding: 8px 15px;
+                 text-align: center;
+                 text-decoration: none;
+                 display: inline-block;
+                 font-size: 14px;
+            }
+
+            .button:hover {
+                 background-color: #0c66b3;
+                 color: white;
+            }
+
+
+		</style>
+    </head>
+
+    <body>
+
+        <div class="container">
+			<div class="row">
+				<div class="col-md-5">
+					<h1>中国各直辖市水资源变化曲线（亿立方米）</h1>
+					<p>数据来源： <a href="http://data.stats.gov.cn/easyquery.htm?cn=E0103">国家统计局</a></p>
+					<p>制图：霍麒如</p>
+					<div class="btn-group" role="group" aria-label="...">
+						<button type="button" class="button" id="Beijing">北京</button>
+						<button type="button" class="button" id="Shanghai">上海</button>
+						<button type="button" class="button" id="Tianjin">天津</button>
+						<button type="button" class="button" id="Chongqing">重庆</button>						
+					</div>
+					<div id="svg"></div>
+				</div>
+
+				<div class="col-md-5 col-md-offset-2">
+					<div class="map_note">
+						<p>中国水资源分布图</p>
+						<img src="img/Water_resources.jpg" class="img-responsive" alt="Water resources image" height="600" width="600">
+					</div>
+				</div>
+			</div>
+		</div>
+
+    </body>
+
+    <!-- d3线上lib -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.1.0/d3.js"></script>
+    <!-- jquery线上lib -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+
+
+    <script type="text/javascript">
+		var fullwidth = 700;
+		var fullheight = 600;
+		var margin = {top: 50, right: 40, bottom: 80, left: 60};
+
+		var width = fullwidth - margin.left - margin.right;
+		var height = fullheight - margin.top - margin.bottom;
+
+		var svg = d3.select("#svg")
+					.append("svg")
+					.attr("width", fullwidth)
+					.attr("height", fullheight)
+					.append("g")
+					.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+		var dateParse = d3.timeParse("%Y");
+		var dateFormat = d3.timeFormat("%Y");
+		var outputFormat = d3.timeFormat("%Y");
+
+		var years = ["2006", "2016"];
+
+		var xScale = d3.scaleTime()
+						.range([ 0, width ])
+						.domain(
+							d3.extent(years, function(d) {
+							return dateParse(d);
+							}));
+
+		var yScale = d3.scaleLinear()
+						.range([ 0, height ]);
+
+		var xAxis = d3.axisBottom(xScale)
+						.ticks(5)
+						.tickFormat(function(d) {
+							return outputFormat(d);
+						})
+
+		var yAxis = d3.axisRight(yScale)
+						.tickSize(width)
+
+		var line = d3.line()
+						.x(function(d) {
+							return xScale(dateParse(d.Year));
+						})
+						.y(function(d) {
+							return yScale(+d.Water_resources);
+						})
+						.curve(d3.curveCardinal);
+
+		var tooltip = d3.select("body")
+					  	.append("div")
+					  	.attr("class", "tooltip");
+
+
+		d3.csv("Water_resourse_fourcity.csv", function(error, data) {
+
+
+			var dataset =  d3.nest()
+					.key(function(d) {
+						return d.Province;
+					})
+					.sortValues(function (a, b) { return dateParse(a.Year) - dateParse(b.Year)})
+					.entries(data);
+
+			// doing the max on the unnested data - easier to get the full set of Measles that way!
+			yScale.domain([
+				d3.max(data, function(d) {
+						return +d.Water_resources;
+				}),
+				0
+			]);
+
+
+			function get_values_for_Province(Province) {
+				if (Province === "Beijing") {
+					Province = "Beijing";
+				}
+
+				return dataset.filter(function (d) {
+							return d.key == Province;
+						})[0].values;
+			}
+
+			var Beijing = get_values_for_Province("Beijing");
+
+			svg.selectAll("path")
+				.data( [Beijing] )
+				.enter()
+				.append("path")
+				.attr("class", "line")
+				.attr("d", line);
+
+			d3.select("button#Beijing").classed("selected", true);
+
+
+			svg.append("g")
+			    .attr("transform", "translate(0," + height + ")")
+			    .call(customXAxis);
+
+			svg.append("g")
+			    .call(customYAxis);
+
+			function customXAxis(g) {
+			  g.call(xAxis);
+			  g.select(".domain").remove();
+			}
+
+			function customYAxis(g) {
+			  g.call(yAxis);
+			  g.select(".domain").remove();
+			  g.selectAll(".tick:not(:last-of-type) line").attr("stroke", "#777").attr("stroke-dasharray", "4,2");
+			  g.selectAll(".tick text").attr("x", 4).attr("dy", -4);
+			}
+
+			d3.selectAll("button").on("click", function() {
+				
+				var selectedline = d3.select("path.line");
+				var thisButton = d3.select(this);
+				var thisId = d3.select(this).attr("id");
+
+				var newdata = get_values_for_Province(thisId); 
+
+				d3.selectAll("button").classed("selected", false);
+				thisButton.classed("selected", true);
+
+				selectedline
+					.transition()
+					.duration(2000)
+					.attr("d", line(newdata));
+
+			});
+
+
+		}); // end of data csv
+
+    </script>
+
+</html>
